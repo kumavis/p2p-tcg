@@ -7,6 +7,12 @@ const archetypes = require('./archetypes')
 
 setTimeout(start)
 
+//
+// - create a plaintext "base deck"
+// - A+ B both shuffle and encrypt it
+// - pull a doubly encrypted card off the top and doubly decrypt it (B first so only A sees plaintext)
+//
+
 function start() {
   const remotePlayer = new RemotePlayer()
   // create baseDeck with one card from each archetype

@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const xor = require('buffer-xor')
 const hash = require('ethereumjs-util').sha3
 
+const createPlayerStore = require('./playerState')
 const archetypes = require('./archetypes')
 
 setTimeout(start)
@@ -14,25 +15,40 @@ setTimeout(start)
 //
 
 function start() {
+  const proofs = {}
   const remotePlayer = new RemotePlayer()
+
+  // initialize player
+  // Create a Redux store holding the state of your app.
+  // Its API is { subscribe, dispatch, getState }.
+  const localPlayer = createPlayerStore()
+  // localPlayer.subscribe(() =>
+  //   console.log(localPlayer.getState())
+  // )
+
   // create baseDeck with one card from each archetype
   const baseDeck = createDeckTakeOneofAll(archetypes)
+  localPlayer.setBaseDeck(baseDeck)
   console.log('announce baseDeck:')
   displayDeck(baseDeck)
 
   // create playDeck with help from remote player
-  const proofs = {}
-  const playDeck = preparePlayDeck({ proofs, baseDeck, remotePlayer })
+  preparePlayDeck({ proofs, localPlayer, remotePlayer })
   console.log('received play deck')
+
   // draw a card and decrypt via remote player
-  const newCard = drawCard({ proofs, playDeck, remotePlayer })
+  const newCard = drawCard({ proofs, localPlayer, remotePlayer })
+  // localPlayer.drawCard(newCard)
   console.log('drew card:')
   displayCard(newCard)
+
 }
 
-function drawCard({ proofs, playDeck, remotePlayer }){
+function drawCard({ proofs, localPlayer, remotePlayer }){
   // draw a card
-  const drawnCard = playDeck.pop()
+  const { playDeck } = localPlayer.getState()
+  const drawnCard = playDeck[0]
+  assert(drawnCard, 'card was drawn')
   // decrypt via remote player
   const remoteRevealProof = remotePlayer.requestDrawnCard(drawnCard)
   assert.equal(drawnCard, remoteRevealProof.shieldedCard, 'proof and original match')
@@ -41,17 +57,20 @@ function drawCard({ proofs, playDeck, remotePlayer }){
   // decrypt locally
   const localRevealProof = revealCardViaProofLibrary(proofs, locallyShieldedCard)
   const newCard = localRevealProof.card
+  localPlayer.drawCard({ shieldedCard: drawCard, card: newCard })
   return newCard
 }
 
-function preparePlayDeck({ proofs, remotePlayer, baseDeck }){
+function preparePlayDeck({ proofs, localPlayer, remotePlayer }){
   // prepare for play deck
+  const { baseDeck } = localPlayer.getState()
   const shuffledBaseDeck = shuffleDeck(baseDeck)
   const shieldedBaseProofs = shieldDeck(shuffledBaseDeck)
   const shieldedBaseDeckOnly = extractShieldedOnly(shieldedBaseProofs)
   importToProofLibrary(proofs, shieldedBaseProofs)
   console.log('sending half-ready deck to remote player')
   const playDeck = remotePlayer.requestShieldAndShuffle(shieldedBaseDeckOnly)
+  localPlayer.setPlayDeck(playDeck)
   return playDeck
 }
 

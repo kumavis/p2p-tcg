@@ -5,8 +5,14 @@ const hash = require('ethereumjs-util').sha3
 
 const createPlayerStore = require('./playerState')
 const archetypes = require('./archetypes')
+const interface = require('./interface')
 
-setTimeout(start)
+setTimeout(() => {
+  start().catch((err) => {
+    console.error(err)
+    interface.done()
+  })
+})
 
 //
 // - create a plaintext "base deck"
@@ -14,46 +20,70 @@ setTimeout(start)
 // - pull a doubly encrypted card off the top and doubly decrypt it (B first so only A sees plaintext)
 //
 
-function start() {
+async function start() {
   const proofs = {}
   const remotePlayer = new RemotePlayer()
 
   // initialize player
   // Create a Redux store holding the state of your app.
   // Its API is { subscribe, dispatch, getState }.
-  const localPlayer = createPlayerStore()
+  const localPlayer = createPlayerStore({ name: 'localPlayer' })
   // localPlayer.subscribe(() => {
   //   displayCardStats(localPlayer.getState())
   // })
 
   // create baseDeck with one card from each archetype
-  const baseDeck = createDeckTakeThreeofAll(archetypes)
+  const baseDeck = createDeckTakeOneofAll(archetypes)
   localPlayer.setBaseDeck(baseDeck)
-  console.log('announce baseDeck:')
-  displayDeck(baseDeck)
+  remotePlayer.sendBaseDeck(baseDeck)
+  console.log(`loaded baseDeck: ${baseDeck.length} cards`)
 
   // create playDeck with help from remote player
   preparePlayDeck({ proofs, localPlayer, remotePlayer })
-  console.log('received play deck')
+  console.log('received shuffled play deck')
 
   // draw a card and decrypt via remote player
   const hand = drawHand({ proofs, localPlayer, remotePlayer })
-  console.log('drew hand:')
-  displayDeck(hand)
+  console.log('drew hand')
 
-  displayCardStats(localPlayer.getState())
+  // loop through game
+  while (true) {
+    console.log('- - - - - your turn - - - - -')
+    const playerState = localPlayer.getState()
+    const { hand, playfield } = playerState
+    displayCardStats(playerState)
+    displayHand(hand)
+    displayPlayfield(playfield)
+
+    const { action, params } = await interface.getAction(['play', 'draw'])
+    switch (action) {
+      case 'play':
+        const cardIndex = parseInt(params[0], 10)
+        const card = hand[cardIndex]
+        console.log('--> you played:')
+        displayCard(card)
+        assert(card, 'player chose a valid card')
+        playCard({ proofs, localPlayer, remotePlayer, card })
+        break
+
+      case 'draw':
+        const newCard = drawCard({ proofs, localPlayer, remotePlayer })
+        console.log('--> you drew:')
+        displayCard(newCard)
+        break
+    }
+  }
 
 }
 
-function displayCardStats(playerState) {
-  let { baseDeck, playDeck, hand, playfield } = playerState
-  baseDeck = baseDeck || []
-  playDeck = playDeck || []
-  console.log(`card stats:`)
-  console.log(`  deck: ${playDeck.length}/${baseDeck.length}`)
-  console.log(`  hand: ${hand.length}`)
-  console.log(`  play: ${playfield.length}`)
+function playCard({ proofs, localPlayer, remotePlayer, card }) {
+  // reveal card to remote player
+  const revealProof = lookupProofViaProofLibrary(proofs, card)
+  remotePlayer.sendPlayedCard(revealProof)
+  // play locally
+  localPlayer.playCard({ card })
 }
+
 
 function drawHand({ proofs, localPlayer, remotePlayer }) {
   drawCard({ proofs, localPlayer, remotePlayer })
@@ -78,7 +108,7 @@ function drawCard({ proofs, localPlayer, remotePlayer }) {
   // decrypt locally
   const localRevealProof = revealCardViaProofLibrary(proofs, locallyShieldedCard)
   const newCard = localRevealProof.card
-  localPlayer.drawCard({ shieldedCard: drawnCard, card: newCard })
+  localPlayer.drawCard({ card: newCard, shieldedCard: drawnCard })
   return newCard
 }
 
@@ -103,16 +133,18 @@ function createDeckTakeOneofAll(archetypes){
   return archetypes.map((archetype, index) => intToBuffer(index))
 }
 
-function createDeckTakeThreeofAll(archetypes){
-  const deck = []
-  archetypes.forEach((archetype, index) => {
-    const card = intToBuffer(index)
-    deck.push(card)
-    deck.push(card)
-    deck.push(card)
-  })
-  return deck
-}
+// // it breaks if we have multiple copies of the same card atm
+// // need to add a mapping between card uuid -> archetype
+// function createDeckTakeThreeofAll(archetypes){
+//   const deck = []
+//   archetypes.forEach((archetype, index) => {
+//     const card = intToBuffer(index)
+//     deck.push(card)
+//     deck.push(card)
+//     deck.push(card)
+//   })
+//   return deck
+// }
 
 function shuffleDeck(deck) {
   const originalDeck = deck.slice()
@@ -178,8 +210,37 @@ function revealCardViaProofLibrary(proofs, shieldedCard){
   return revealProof
 }
 
+function lookupProofViaProofLibrary(proofs, card){
+  const revealProof = Object.values(proofs).find((revealProof) => revealProof.card.equals(card))
+  return revealProof
+}
+
+function displayCardStats(playerState) {
+  let { baseDeck, playDeck, hand, playfield } = playerState
+  baseDeck = baseDeck || []
+  playDeck = playDeck || []
+  console.log(`stats:`)
+  console.log(`  deck: ${playDeck.length}/${baseDeck.length}`)
+  console.log(`  hand: ${hand.length}`)
+  console.log(`  play: ${playfield.length}`)
+}
+
+function displayHand(deck) {
+  console.log('hand:')
+  displayDeck(deck)
+}
+
+function displayPlayfield(deck) {
+  console.log('playfield:')
+  displayDeck(deck)
+}
+
 function displayDeck(deck) {
-  deck.forEach(displayCard)
+  if (deck.length === 0) return console.log('( empty )')
+  deck.forEach((card, index) => {
+    const archetypeId = bufferToInt(card)
+    console.log(' ', index, archetypes[archetypeId])
+  })
 }
 
 function displayCard(card) {
@@ -188,27 +249,48 @@ function displayCard(card) {
 }
 
 class RemotePlayer {
+
   constructor() {
     this.proofs = {}
-    this.playerRemoteDeck = undefined
+    this.rivalPlayer = createPlayerStore({
+      name: 'remotePlayer.rival',
+      rival: true,
+    })
   }
-  requestShieldAndShuffle (baseDeck) {
+
+  sendBaseDeck (baseDeck) {
+    this.rivalPlayer.setBaseDeck(baseDeck)
+  }
+
+  requestShieldAndShuffle (halfReadyDeck) {
     // perform shield and shuffle
-    const shuffledBaseDeck = shuffleDeck(baseDeck)
-    const shieldedBaseProofs = shieldDeck(shuffledBaseDeck)
-    const shieldedBaseDeckOnly = extractShieldedOnly(shieldedBaseProofs)
-    this.playerRemoteDeck = shieldedBaseDeckOnly
+    const shuffledHalfReadyDeck = shuffleDeck(halfReadyDeck)
+    const playDeckProofs = shieldDeck(shuffledHalfReadyDeck)
+    const playDeckOnly = extractShieldedOnly(playDeckProofs)
+    // this.rivalPlayer.setHalfReadyDeck(baseDeck)
+    this.rivalPlayer.setPlayDeck(playDeckOnly)
     // record proofs
-    importToProofLibrary(this.proofs, shieldedBaseProofs)
+    importToProofLibrary(this.proofs, playDeckProofs)
     // give obfuscated result
-    return shieldedBaseDeckOnly
+    return playDeckOnly
   }
+
   requestDrawnCard (shieldedCard) {
     // // first, verify that its the users turn to do this
-    // // next, verify card is in deck
-    // assert(this.playerRemoteDeck.includes(shieldedCard), 'card is in players deck')
-    // this.playerRemoteDeck.remove(shieldedCard)
     // next, lookup proof
-    return revealCardViaProofLibrary(this.proofs, shieldedCard)
+    const revealProof = revealCardViaProofLibrary(this.proofs, shieldedCard)
+    const { card } = revealProof
+    // update rivals state
+    this.rivalPlayer.drawCard({ card, shieldedCard })
+    return revealProof
+  }
+
+  sendPlayedCard (revealProof) {
+    console.log('sendPlayedCard - revealProof', revealProof)
+    console.log('sendPlayedCard - playerState', this.rivalPlayer.getState())
+    // verify proof
+    verifyRevealProof(revealProof)
+    const { card, shieldedCard } = revealProof
+    this.rivalPlayer.playCard({ card, shieldedCard })
   }
 }

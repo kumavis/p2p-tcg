@@ -20,6 +20,22 @@ module.exports = [
     name: 'rock lobster',
     type: 'animal',
   },
+  {
+    name: 'tree octopus',
+    type: 'animal',
+  },
+  {
+    name: 'tree octopus',
+    type: 'animal',
+  },
+  {
+    name: 'radscorpion',
+    type: 'animal',
+  },
+  {
+    name: 'orang-bati',
+    type: 'animal',
+  },
 
   //
   // vegetable
@@ -37,6 +53,22 @@ module.exports = [
     name: 'numbtongue root',
     type: 'vegetable',
   },
+  {
+    name: 'boot cactus',
+    type: 'vegetable',
+  },
+  {
+    name: 'rusty safoon',
+    type: 'vegetable',
+  },
+  {
+    name: 'barnacle succulent',
+    type: 'vegetable',
+  },
+  {
+    name: 'halftooth thorn',
+    type: 'vegetable',
+  },
 
   //
   // mineral
@@ -52,6 +84,22 @@ module.exports = [
   },
   {
     name: 'vespene condensate',
+    type: 'mineral',
+  },
+  {
+    name: 'myrrh resin',
+    type: 'mineral',
+  },
+  {
+    name: 'earthquake opal',
+    type: 'mineral',
+  },
+  {
+    name: 'diatom frustule',
+    type: 'mineral',
+  },
+  {
+    name: 'pouch of buckminsterfullerene',
     type: 'mineral',
   },
 

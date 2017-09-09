@@ -12,6 +12,7 @@
     "buffer-xor": "^2.0.2",
     "clone": "^2.1.1",
     "ethereumjs-util": "^5.1.2",
+    "prompt-promise": "^1.0.3",
     "redux": "^3.7.2"
   }
 }

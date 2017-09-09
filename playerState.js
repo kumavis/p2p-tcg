@@ -1,7 +1,9 @@
 const assert = require('assert')
+const clone = require('clone')
 const { createStore } = require('redux')
 
 function playerReducer(state, action) {
+  state = clone(state)
   switch (action.type) {
 
     case 'SET_BASE_DECK':
@@ -46,8 +48,9 @@ function createPlayerStore() {
 
 module.exports = createPlayerStore
 
-function removeFromArray(array, item) {
-  const index = array.indexOf(item)
-  if (index === -1) return
+function removeFromArray(array, target) {
+  const match = array.find((entry) => Buffer.compare(entry, target) === 0)
+  assert(match, 'element not found in array')
+  const index = array.indexOf(match)
   array.splice(index, 1)
 }

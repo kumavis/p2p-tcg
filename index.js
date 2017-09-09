@@ -22,12 +22,12 @@ function start() {
   // Create a Redux store holding the state of your app.
   // Its API is { subscribe, dispatch, getState }.
   const localPlayer = createPlayerStore()
-  // localPlayer.subscribe(() =>
-  //   console.log(localPlayer.getState())
-  // )
+  // localPlayer.subscribe(() => {
+  //   displayCardStats(localPlayer.getState())
+  // })
 
   // create baseDeck with one card from each archetype
-  const baseDeck = createDeckTakeOneofAll(archetypes)
+  const baseDeck = createDeckTakeThreeofAll(archetypes)
   localPlayer.setBaseDeck(baseDeck)
   console.log('announce baseDeck:')
   displayDeck(baseDeck)
@@ -37,27 +37,48 @@ function start() {
   console.log('received play deck')
 
   // draw a card and decrypt via remote player
-  const newCard = drawCard({ proofs, localPlayer, remotePlayer })
-  // localPlayer.drawCard(newCard)
-  console.log('drew card:')
-  displayCard(newCard)
+  const hand = drawHand({ proofs, localPlayer, remotePlayer })
+  console.log('drew hand:')
+  displayDeck(hand)
+
+  displayCardStats(localPlayer.getState())
 
 }
 
-function drawCard({ proofs, localPlayer, remotePlayer }){
+function displayCardStats(playerState) {
+  let { baseDeck, playDeck, hand, playfield } = playerState
+  baseDeck = baseDeck || []
+  playDeck = playDeck || []
+  console.log(`card stats:`)
+  console.log(`  deck: ${playDeck.length}/${baseDeck.length}`)
+  console.log(`  hand: ${hand.length}`)
+  console.log(`  play: ${playfield.length}`)
+}
+
+function drawHand({ proofs, localPlayer, remotePlayer }) {
+  drawCard({ proofs, localPlayer, remotePlayer })
+  drawCard({ proofs, localPlayer, remotePlayer })
+  drawCard({ proofs, localPlayer, remotePlayer })
+  drawCard({ proofs, localPlayer, remotePlayer })
+  drawCard({ proofs, localPlayer, remotePlayer })
+  const { hand } = localPlayer.getState()
+  return hand
+}
+
+function drawCard({ proofs, localPlayer, remotePlayer }) {
   // draw a card
   const { playDeck } = localPlayer.getState()
   const drawnCard = playDeck[0]
   assert(drawnCard, 'card was drawn')
   // decrypt via remote player
   const remoteRevealProof = remotePlayer.requestDrawnCard(drawnCard)
-  assert.equal(drawnCard, remoteRevealProof.shieldedCard, 'proof and original match')
+  assert.deepEqual(drawnCard, remoteRevealProof.shieldedCard, 'proof and original match')
   verifyRevealProof(remoteRevealProof)
   const locallyShieldedCard = remoteRevealProof.card
   // decrypt locally
   const localRevealProof = revealCardViaProofLibrary(proofs, locallyShieldedCard)
   const newCard = localRevealProof.card
-  localPlayer.drawCard({ shieldedCard: drawCard, card: newCard })
+  localPlayer.drawCard({ shieldedCard: drawnCard, card: newCard })
   return newCard
 }
 
@@ -80,6 +101,17 @@ function requestRemotePlayerToShuffleAndShield(deck){
 
 function createDeckTakeOneofAll(archetypes){
   return archetypes.map((archetype, index) => intToBuffer(index))
+}
+
+function createDeckTakeThreeofAll(archetypes){
+  const deck = []
+  archetypes.forEach((archetype, index) => {
+    const card = intToBuffer(index)
+    deck.push(card)
+    deck.push(card)
+    deck.push(card)
+  })
+  return deck
 }
 
 function shuffleDeck(deck) {

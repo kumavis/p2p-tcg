@@ -98,19 +98,20 @@ function extractShieldedOnly(shieldedDeckWithProofs) {
 }
 
 function shieldDeck(deck) {
-  return deck.map(shieldCard)
+  return deck.map((card) => shieldCard(card))
 }
 
-function shieldCard(card) {
-  const secret = getNonce()
-  const shieldedCard = hash(xor(card, secret))
+function shieldCard(card, _secret) {
+  const secret = _secret || getNonce()
+  const shieldedCard = hash(Buffer.concat([card, secret]))
   return { card, shieldedCard, secret }
 }
 
 function verifyRevealProof(revealProof) {
   const { card, shieldedCard, secret } = revealProof
-  const reconstructed = hash(xor(card, secret))
-  assert.deepEqual(reconstructed, shieldedCard)
+  const reconstructedProof = shieldCard(card, secret)
+  const reconstructedCard = reconstructedProof.shieldedCard
+  assert.deepEqual(reconstructedCard, shieldedCard)
 }
 
 function getNonce(){

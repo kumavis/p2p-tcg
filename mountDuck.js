@@ -16,6 +16,7 @@ function mountDuck(namespace, duck) {
   return newDuck
 }
 
+// appends namespace to created action
 function mountActionCreator(pathPrefix, actionCreator) {
   return (...args) => {
     const action = actionCreator(...args)
@@ -24,11 +25,11 @@ function mountActionCreator(pathPrefix, actionCreator) {
   }
 }
 
+// filters for namespace and if match, strips namespace before giving to reducer
 function mountReducer(pathPrefix, reducer) {
   const initState = reducer(undefined, {})
   return (state = initState, action) => {
     const namespaceMatches = pathPrefix === action.type.slice(0, pathPrefix.length)
-    // console.log('mounted reducer:',pathPrefix,namespaceMatches,state,action)
     if (!namespaceMatches) return state
     const strippedType = action.type.slice(pathPrefix.length)
     const namespacedAction = { ...action, type: strippedType }

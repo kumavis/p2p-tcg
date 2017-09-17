@@ -11,7 +11,7 @@ module.exports = createDuck({
   SET_PLAY_DECK: (state, action) => {
     const { name, playDeck } = state
     assert(!playDeck, `PlayerStore (${name}) - playDeck already set`)
-    return return { ...state, playDeck: action.value }
+    return { ...state, playDeck: action.value }
   },
 
   DRAW_CARD: (state, action) => {

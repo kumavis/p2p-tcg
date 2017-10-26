@@ -1,0 +1,82 @@
+things
+- card archetypes
+- cards (instances of archetypes) of universal set
+- collection of cards (subset of universal, e.g. owned)
+- deck (subset of collection) public/sealed or owned
+
+- playset? *unordered* collection of cards
+- deck? *ordered* collection of cards (shuffled)
+
+weird econ
+- deck pools
+- buy all of card X
+
+codes
+  Sc(cuid, sn, pid) ownership proof (unique tuple!)
+  cuid = card unique identifier
+  sn = its purchased sequence number (not a unique number, eg. players 4th fireball)
+  pid = the player’s unique identifier (pid)
+
+universal -> subset -> draft into player's deck -> shuffled deck
+
+randomizing a set (making a sealed deck)
+  1) Alice randomly generates a private number iA and a public number jA.
+  2) Alice signs her private number and only sends the signature SA(iA, nonce) to Bob.
+  Recall from our notation that this is simply Alice’s digital signature of the tuple (iA, nonce) and does not include the actual values.
+  3) Bob randomly generates a private number iB and a public number jB.
+  4) Bob signs his private number and gives SB(iB, nonce) to Alice.
+  5) Alice and Bob exchange the tuples (jA, SA(jA)) and (jB, SB(jB)).
+  In other words, they exchange their public numbers and sign those numbers (so that they cannot later argue that they gave different public numbers).
+  6) Alice XORs jB with iA to create a new random number, kA, while Bob XORs jA with iB to create kB.
+  7) kA mod |U| is the unique identifier of Alice’s card from U, while kB mod |U| is Bob’s first card from U.
+
+alice -> bob
+  sigPriv = sign(numPriv, nonce)
+  sigPub = sign(numPub, nonce)
+  pubTuple = (numPun, sigPub)
+bob -> alice
+  sig = sign(numPriv, nonce)
+
+same in parallel:
+  - Alice generates k private numbers i1A...ikA and public numbers j1A...jkA.
+  - Bob does the same thing for private and public numbers.
+  - signed individually
+
+choose playdeck
+  - Alice chooses a card for her play deck. Recall that Bob
+  sent her k public numbers for each of the k cards in her
+  base deck. Alice sends (p, SA(p)) where p corresponds to
+  the order of the 1...k values Bob sent her. For example,
+  if the card she chose for her play deck was selected
+  by XORing her 5th private number with his 5th public
+  number, she sends (5, SA(5)) to Bob. Alice repeats this
+  for every card she adds to her play deck from her base
+  deck. This prevents Bob from knowing Alice’s play deck,
+  though he knows her base deck.
+  - Bob chooses a card for his play deck, sending her
+  (p, SB(p)) for his chosen card, where p is the order of the public values correponding to the card he chose. Bob
+repeats this step for every card he adds to his play deck
+from his base deck.
+
+shuffling a playdeck = opponent picks order of encrypted card
+  1) Alice’s play deck, consisting of p cards are shuffled.
+  Recall that she has already told Bob which cards are in
+  her play deck by referring to them by their pth order
+  value.
+  2) For each card in her deck, Alice sends SA(p, nonce) to
+  Bob.
+  3) Bob further shuffles the deck to ensure that Alice shuf-
+  fled it properly. When Alice needs a card, she simply
+  asks Bob for the next one, which he sends.
+
+playing a card from the playdeck (no hand?)
+  When Alice or Bob play a card from their play deck, they reveal the associated
+  private number and the order value (which they sent to
+  represent each card). For example, when Alice plays the card
+  that was chosen by Bob’s 5th public number, Alice sends the
+  tuple (5, i5, SA(5, i5)) to Bob. As Bob knows his 5th public
+  value and was previously sent the hash of Alice’s 5th private
+  value, he can calculate the hash of i5 to see if it matches the
+  previously sent hash. Further, he can XOR i5 with his 5th
+  public number to determine the cuid of the card and verify
+  that the correct card was played.
